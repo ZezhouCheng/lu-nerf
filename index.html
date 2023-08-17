@@ -1,0 +1,116 @@
+ <meta charset="utf-8" emacsmode="-*- markdown -*-"><link rel="stylesheet" href="./custom.css">
+
+ **LU-NeRF: Scene and Pose Estimation by Synchronizing Local Unposed NeRFs**
+    <font size="2.5">[Zezhou Cheng^1](http://people.cs.umass.edu/~zezhoucheng), [Carlos Esteves^2](https://machc.github.io/), [Varun Jampani^2](https://varunjampani.github.io/), [Abhishek Kar^2](https://abhishekkar.info/), [Subhransu Maji^1](http://people.cs.umass.edu/~smaji/), [Ameesh Makadia^2](https://www.ameeshmakadia.com/) <font>
+    ^1 University of Massachusetts Amherst    &nbsp &nbsp    ^2 Google Research
+
+   <center>
+   <span style="color:black;font-size:15px">ICCV 2023</span> <br />
+   <span style="color:blue;font-size:15px">[[paper](http://arxiv.org/abs/2306.05410)]</span>
+   </center>
+
+
+<center>
+<img src="./figs/lu-nerf-fig1.png"  alt="1" >
+<br> <span style="color:#FF1493"> __Pink__ </span> cameras: groundtruth; <span style="color:blue"> __Blue__ </span> cameras: predictions </br>
+</center>
+<br> __TL;DR__ LU-NeRF jointly estimates SE(3) camera poses and NeRFs without (1) coarse camera pose initialization (unlike [BARF](https://chenhsuanlin.bitbucket.io/bundle-adjusting-NeRF/)) (2) prior pose distribution (unlike [GNeRF](https://arxiv.org/abs/2103.15606)) (3) depth information (unlike [NoPe-NeRF](https://nope-nerf.active.vision/) and [LocalRF](https://localrf.github.io/))</br>
+
+Problem: NeRF relies on accurate camera poses
+--------------------------------
+
+The camera poses used in NeRF are usually estimated by Structure-from-Motion (SfM). However, SfM may fail in many scenario such as textureless region, repetative patterns, and low-resolution images. Below lists some examples from Objectron dataset where [COLMAP](https://colmap.github.io/) fails even with modern feature descriptor and matcher (e.g. [Superpoint](https://arxiv.org/abs/1712.07629) and [Superglue](https://arxiv.org/abs/1911.11763)). 
+Our approach could potentially serve as a complementary technique to COLMAP in such situations.
+<center>
+<img src="./figs/objectron.png"  alt="1" >
+</center>
+
+
+Existing solutions: jointly optimize camera poses and NeRF
+--------------------------------
+
+Existing works rely on coarse camera estimation (e.g. [BARF](https://chenhsuanlin.bitbucket.io/bundle-adjusting-NeRF/)), prior pose distribution (e.g. [GNeRF](https://arxiv.org/abs/2103.15606)), geometric priors such as depth (e.g. [NoPe-NeRF](https://nope-nerf.active.vision/) and [LocalRF](https://localrf.github.io/)). For example, GNeRF degrades as the pose prior is expanded beyond the true distribution, as shown below, 
+
+<center>
+<img src="./figs/unordered-gnerf.png"  alt="1" >
+</center>
+
+Our method: local-to-global pose and scene optimization
+--------------------------------
+
+* Our method consists of three steps: Build a connected graph --> Local pose estimation --> Global pose and scene refinement. 
+* An interesting observation when training a local unposed NeRF is the __mirror symmetry ambiguity__. For example, the depth of mini-scene-2 below is __inversed__, which results in high pose estimation error. We propose a simple method to resolve such ambiguity (see paper for details).
+
+<table>
+  <tr>
+    <td> <img src="figs/ambiguity/4/images/r_15.png"  alt="1"  ></td>
+    <td> <img src="figs/ambiguity/4/images/r_22.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/4/images/r_4.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/4/images/r_59.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/4/images/r_74.png"  alt="1" ></td>
+    <td> <video width="150" height="150" controls><source src="figs/ambiguity/4/novel_view_rgb.mp4" type="video/mp4"></video></td>
+    <td> <video width="150" height="150" controls><source src="figs/ambiguity/4/novel_view_depth.mp4" type="video/mp4"></video></td>
+  </tr> 
+  <tr>
+    <td colspan="5" style="text-align: center"> mini-scene-1 (rotation error: 4.50 degrees) </td>
+    <td style="text-align: center"> novel view RGB </td>
+    <td style="text-align: center"> novel view depth </td>
+  </tr>
+  <tr>
+    <td> <img src="figs/ambiguity/13/images/r_13.png"  alt="1"  ></td>
+    <td> <img src="figs/ambiguity/13/images/r_20.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/13/images/r_55.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/13/images/r_63.png"  alt="1" ></td>
+    <td> <img src="figs/ambiguity/13/images/r_70.png"  alt="1" ></td>
+    <td> <video width="150" height="150" controls><source src="figs/ambiguity/13/novel_view_rgb.mp4" type="video/mp4"></video></td>
+    <td> <video width="150" height="150" controls><source src="figs/ambiguity/13/novel_view_depth.mp4" type="video/mp4"></video></td>
+  </tr> 
+  <tr>
+    <td colspan="5" style="text-align: center" > mini-scene-2 (rotation error: 167.09 degrees) </td>
+    <td style="text-align: center"> novel view RGB </td>
+    <td style="text-align: center"> novel view depth </td>
+  </tr>
+
+</table>
+
+Caveats & Future work
+--------------------------------
+1. __High computational cost for MLP-based NeRFs__. This can be potentially solved with grid-based NeRF (e.g. [TensoRF](https://apchenstu.github.io/TensoRF/)).
+
+2. __Unstable graph building on unorderd images__.  One way to build a connected graph is using pretrained [DINO](https://arxiv.org/abs/2104.14294) feature. However, some image pairs are not distinguishable with DINO (see below), which leads to noise in the graph and may cause the failure of our model. 
+<center>
+<img src="./figs/dino.png"  alt="1" >
+</center>
+
+Concurrent works
+--------------------------------
+1. Bian, Wenjing, Zirui Wang, Kejie Li, Jia-Wang Bian, and Victor Adrian Prisacariu. [NoPe-NeRF: Optimising Neural Radiance Field with No Pose Prior.](https://nope-nerf.active.vision/) CVPR 2023. 
+
+2. Andreas Meuleman, Yu-Lun Liu, Chen Gao, Jia-Bin Huang, Changil Kim, Min H Kim, and Johannes Kopf. [Progressively optimized local radiance fields for robust view synthesis.](https://localrf.github.io/) CVPR 2023.
+
+3. Mehdi S. M. Sajjadi, Aravindh Mahendran, Thomas Kipf, Etienne Pot, Daniel Duckworth, Mario Lučić, Klaus Greff. [RUST: Latent Neural Scene Representations from Unposed Imagery.](https://rust-paper.github.io/) CVPR 2023. 
+
+4. Axel Levy, Mark Matthews, Matan Sela, Gordon Wetzstein, Dmitry Lagun. [MELON: NeRF with Unposed Images Using Equivalence Class Estimation.](https://melon-nerf.github.io/) arXiv 2023.
+
+5. Cameron Smith, Yilun Du, Ayush Tewari, Vincent Sitzmann. [FlowCam: Training Generalizable 3D Radiance Fields without Camera Poses via Pixel-Aligned Scene Flow](https://cameronosmith.github.io/flowcam/) arXiv 2023.
+
+BibTeX
+-------------------------------
+
+~~~~~~~~~~~~~~~~~~~~~~~~ none
+@InProceedings{cheng2023lunerf,
+  title={LU-NeRF: Scene and Pose Estimation by Synchronizing Local Unposed NeRFs},
+  author={Cheng, Zezhou and Esteves, Carlos and Jampani, Varun and Kar, Abhishek and Maji, Subhransu and Makadia, Ameesh},
+  booktitle = {Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
+  year={2023}
+}
+~~~~~~~~~~~~~~~~~~~~~~~~ 
+
+
+Acknowledgements
+-------------------------------
+We thank Zhengqi Li and Mehdi S. M. Sajjadi for fruitful discussions. The research is supported in part by NSF grants #1749833 and #1908669. Our experiments were partially performed on the University of Massachusetts GPU cluster funded by the Mass. Technology Collaborative.
+
+<!-- Markdeep: --><style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="markdeep.min.js"></script><script src="https://casual-effects.com/markdeep/latest/markdeep.min.js"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+
+
